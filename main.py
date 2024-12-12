@@ -4,15 +4,16 @@ import copy
 
 
 class Car:
-    def __init__(self, id, direction, lane, arrival_time, departure_time = None):
+    def __init__(self, id, direction, lane, arrival_time, departure_time, cardinal_direction):
         self.id = id
         self.direction = direction
         self.lane = lane
         self.arrival_time = arrival_time
         self.departure_time = departure_time
+        self.cardinal_direction = cardinal_direction
 
     def __str__(self):
-        return f"[{self.arrival_time:3.0f}s]: Car {self.id:3.0f} going {self.direction.ljust(8)} in lane {self.lane}"
+        return f"[{self.arrival_time:3.0f}s]: Car {self.id:3.0f} going {self.direction.ljust(8)} in lane {self.lane} ({self.cardinal_direction}bound)"
 
 class Sim:
 
@@ -31,10 +32,11 @@ class Sim:
         
         # Generate arrivals
         traffic = []
+        cardinal_directions = ['North', 'South', 'East', 'West']
         for direction in range(self.num_directions):
             traffic.append([])
             for lane in range(self.num_lanes):
-                traffic[-1].append(self.generate_arrivals(self.LAMBDA, self.ARRIVALS_PER_LANE, lane))
+                traffic[-1].append(self.generate_arrivals(self.LAMBDA, self.ARRIVALS_PER_LANE, lane, cardinal_directions[(self.num_lanes * direction + lane) // 2]))
 
         # Process traffic
         intersection = [None, None, None, None]
@@ -42,11 +44,13 @@ class Sim:
 
         # TODO: Implement right turn slip lane
         # TODO: Implement left turn signal
-        # TODO: Handle right turn on red light
         while not_empty(traffic):
             
             # Move traffic from lanes into intersection
             intersection = self.update_intersection(traffic, intersection)
+
+            # Handle right turns on red light
+            self.handle_red_light_traffic(traffic, intersection)
 
             # Move traffic through intersection
             intersection = self.process_intersection_traffic(intersection)
@@ -55,6 +59,21 @@ class Sim:
             intersection = self.check_light(intersection)
 
             self.time = self.time + 1
+
+    def handle_red_light_traffic(self, traffic, intersection):
+        red_light_traffic = traffic[(self.green_direction + 1) % 2] 
+        for i in range(len(red_light_traffic)):
+            lane = red_light_traffic[i]
+            if len(lane) == 0 or self.time < lane[0].arrival_time or lane[0].direction != 'right':
+                continue
+
+            # Check if there is straight traffic going to the lane
+            # this car wants to turn right into
+            car = lane[0]
+            oncoming_car = intersection[car.lane] 
+            if not oncoming_car or oncoming_car.direction != 'straight':
+                print(">>>", car, "turned right at red light\n")
+                lane.pop(0)
 
     def check_light(self, intersection):
         if self.time % self.GREEN_LIGHT_TIME == 0 and self.time != 0:
@@ -120,12 +139,12 @@ class Sim:
 
             return intersection
 
-    def generate_arrivals(self, lam, size, lane, rng = np.random.default_rng(seed=0)):
+    def generate_arrivals(self, lam, size, lane, cardinal_direction, rng = np.random.default_rng(seed=0)):
         inter_arrival_times = rng.poisson(lam=lam, size=size)
         arrival_times = inter_arrival_times.cumsum().tolist()
         direction = None
 
-        outer = lane % 2 == 1
+        outer = (lane % (self.num_lanes - 1) == 0)
         if outer:
             direction = ['right' if random.random() < 0.3 else 'straight' for _ in range(size)]
         else:
@@ -134,7 +153,7 @@ class Sim:
         lane = [lane for _ in range(size)]
         id = [i for i in range(size)]
 
-        return [Car(id[i], direction[i], lane[i], arrival_times[i]) for i in range(len(id))]
+        return [Car(id[i], direction[i], lane[i], arrival_times[i], None, cardinal_direction) for i in range(len(id))]
 
 # TODO: run multiple sims, compare results
 Sim()
