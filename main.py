@@ -46,9 +46,64 @@ class Sim:
         while not_empty(traffic):
             
             # Move traffic from lanes into intersection
+            intersection = self.update_intersection(traffic, intersection)
+
+            # Move traffic through intersection
+            intersection = self.process_intersection_traffic(intersection)
+
+            # Change light if necessary
+            intersection = self.check_light(intersection)
+
+            self.time = self.time + 1
+
+    def check_light(self, intersection):
+        if self.time % self.GREEN_LIGHT_TIME == 0 and self.time != 0:
+            self.green_direction = (self.green_direction + 1) % 2
+
+            # All cars in the intersection can go through on a yellow
+            intersection = [None, None, None, None]
+
+            # Add an extra tick for yellow light
+            self.time = self.time + 1
+            print("--- Yellow light, clearing intersection ---\n")
+
+        return intersection
+
+    def process_intersection_traffic(self, intersection):
+        # We need to copy intersection without reference
+        # so we can move cars through without losing track
+        # of them
+        updated_intersection = copy.deepcopy(intersection)
+
+        for car in intersection:
+            if not car:
+                continue
+
+            # Car can pass through intersection
+            if car.direction == 'straight' or car.direction == 'right':
+                updated_intersection[car.lane] = None
+
+            # Check left turn eligibility
+            else:
+                oncoming_straight_car = False
+                for other_car in intersection:
+                    # Check if car is oncoming
+                    if other_car and other_car.lane // 2 != car.lane // 2:
+                        if other_car.direction == 'straight':
+                            oncoming_straight_car = True
+                            break
+
+                if not oncoming_straight_car:
+                    print(">>>", car, "turned left\n")
+                    updated_intersection[car.lane] = None
+
+        return updated_intersection
+
+    def update_intersection(self, traffic, intersection):
             queue = traffic[self.green_direction]
             for i in range(len(queue)):
                 lane = queue[i]
+
                 if len(lane) == 0 or self.time < lane[0].arrival_time:
                     continue
         
@@ -63,43 +118,7 @@ class Sim:
                 print(car)
             print()
 
-            updated_intersection = copy.deepcopy(intersection)
-            for car in intersection:
-                if not car:
-                    continue
-
-                # Car can pass through intersection
-                if car.direction == 'straight' or car.direction == 'right':
-                    updated_intersection[car.lane] = None
-
-                # Check left turn eligibility
-                else:
-                    oncoming_straight_car = False
-                    for other_car in intersection:
-                        # Check if car is oncoming
-                        if other_car and other_car.lane // 2 != car.lane // 2:
-                            if other_car.direction == 'straight':
-                                oncoming_straight_car = True
-                                break
-                    
-                    if not oncoming_straight_car:
-                        print(">>>", car, "turned left\n")
-                        updated_intersection[car.lane] = None
-
-            intersection = copy.deepcopy(updated_intersection)
-
-            # Change light
-            if self.time % self.GREEN_LIGHT_TIME == 0 and self.time != 0:
-                self.green_direction = (self.green_direction + 1) % 2
-                
-                # All cars in the intersection can go through on a yellow
-                intersection = [None, None, None, None]
-                
-                # Add an extra tick for yellow light
-                self.time = self.time + 1
-                print("--- Yellow light, clearing intersection ---\n")
-            
-            self.time = self.time + 1
+            return intersection
 
     def generate_arrivals(self, lam, size, lane, rng = np.random.default_rng(seed=0)):
         inter_arrival_times = rng.poisson(lam=lam, size=size)
