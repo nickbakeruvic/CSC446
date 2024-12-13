@@ -18,17 +18,15 @@ class Car:
 class Sim:
 
     green_direction = 0
-
-    num_lanes, num_directions = 4, 2
     time = 0
-    
-    # TODO: Remove
-    LAMBDA = 1
-    ARRIVALS_PER_LANE = 10
-    GREEN_LIGHT_TIME = 10
 
-    def __init__(self):
+    def __init__(self, num_lanes, num_directions, lam, arrivals_per_lane, green_light_time, priority_left_turn_time=0):
         # TODO: take rate of traffic etc.
+        self.num_lanes = num_lanes
+        self.num_directions = num_directions
+        self.lam = lam
+        self.arrivals_per_lane = arrivals_per_lane
+        self.green_light_time = green_light_time
         
         # Generate arrivals
         traffic = []
@@ -36,10 +34,10 @@ class Sim:
         for direction in range(self.num_directions):
             traffic.append([])
             for lane in range(self.num_lanes):
-                traffic[-1].append(self.generate_arrivals(self.LAMBDA, self.ARRIVALS_PER_LANE, lane, cardinal_directions[(self.num_lanes * direction + lane) // 2]))
+                traffic[-1].append(self.generate_arrivals(lane, cardinal_directions[direction + 2 * lane // self.num_lanes]))
 
         # Process traffic
-        intersection = [None, None, None, None]
+        intersection = [None] * self.num_lanes
         not_empty = lambda t: any(any(lane != [] for lane in direction) for direction in t)
 
         # TODO: Implement right turn slip lane
@@ -76,11 +74,11 @@ class Sim:
                 lane.pop(0)
 
     def check_light(self, intersection):
-        if self.time % self.GREEN_LIGHT_TIME == 0 and self.time != 0:
+        if self.time % self.green_light_time == 0 and self.time != 0:
             self.green_direction = (self.green_direction + 1) % 2
 
             # All cars in the intersection can go through on a yellow
-            intersection = [None, None, None, None]
+            intersection = [None] * self.num_lanes
 
             # Add an extra tick for yellow light
             self.time = self.time + 1
@@ -139,21 +137,26 @@ class Sim:
 
             return intersection
 
-    def generate_arrivals(self, lam, size, lane, cardinal_direction, rng = np.random.default_rng(seed=0)):
-        inter_arrival_times = rng.poisson(lam=lam, size=size)
+    def generate_arrivals(self, lane, cardinal_direction, rng = np.random.default_rng(seed=0)):
+        inter_arrival_times = rng.poisson(lam=self.lam, size=self.arrivals_per_lane)
         arrival_times = inter_arrival_times.cumsum().tolist()
         direction = None
 
+        # TODO: figure out how to detect inner lane as well and only generate left turns for inner lanes
         outer = (lane % (self.num_lanes - 1) == 0)
         if outer:
-            direction = ['right' if random.random() < 0.3 else 'straight' for _ in range(size)]
+            direction = ['right' if random.random() < 0.3 else 'straight' for _ in range(self.arrivals_per_lane)]
         else:
-            direction = ['left' if random.random() < 0.2 else 'straight' for _ in range(size)]
+            direction = ['left' if random.random() < 0.2 else 'straight' for _ in range(self.arrivals_per_lane)]
 
-        lane = [lane for _ in range(size)]
-        id = [i for i in range(size)]
+        lane = [lane for _ in range(self.arrivals_per_lane)]
+        id = [i for i in range(self.arrivals_per_lane)]
 
         return [Car(id[i], direction[i], lane[i], arrival_times[i], None, cardinal_direction) for i in range(len(id))]
 
 # TODO: run multiple sims, compare results
-Sim()
+# Default intersection setup - no priority left turn
+#Sim(num_lanes=4, num_directions=2, lam=0.3, arrivals_per_lane=10, green_light_time=10)
+
+# Extra left turn lane / priority left turn signal
+Sim(num_lanes=6, num_directions=2, lam=0.3, arrivals_per_lane=10, green_light_time=10, priority_left_turn_time=5)
