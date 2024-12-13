@@ -196,11 +196,19 @@ class Sim:
             return intersection
 
     def generate_arrivals(self, lane, cardinal_direction, rng = np.random.default_rng(seed=0)):
-        # TODO: Normalize inter-arrival times for priority lanes (e.g. divide by left/right turn chance)
-        # because we're generating less cars than for straight only lanes
         # TODO: Generate less cars going straight? We'll generate extra num_lanes * right_turn_chance cars
         # when we have right turn lane for example (should have shorter queue in straight lane when cars going
         # to right turn lane)
+        
+
+        #Normalize inter-arrival times for priority lanes (e.g. divide by left/right turn chance)
+        # because we're generating less cars than for straight only lanes
+        if lane % (self.num_lanes - 1) == 0 and self.right_turn_lane:
+          self.lam /= self.right_turn_chance
+        elif abs(lane - (self.num_lanes - 1) / 2) == 0.5 and self.priority_left_turn_time:
+          self.lam /= self.left_turn_chance
+
+
         inter_arrival_times = rng.poisson(lam=self.lam, size=self.arrivals_per_lane)
         arrival_times = inter_arrival_times.cumsum().tolist()
         direction = None
@@ -236,7 +244,7 @@ class Sim:
 # TODO: Aggregate stats & compare for different setups
 
 # Default intersection setup
-#Sim(num_lanes=4, num_directions=2, lam=0.3, arrivals_per_lane=10, green_light_time=10, left_turn_chance=0.3, right_turn_chance=0.3, priority_left_turn_time=None, right_turn_lane=False)
+Sim(num_lanes=4, num_directions=2, lam=0.3, arrivals_per_lane=10, green_light_time=10, left_turn_chance=0.3, right_turn_chance=0.3, priority_left_turn_time=None, right_turn_lane=False)
 
 # Extra right turn lane
 #Sim(num_lanes=6, num_directions=2, lam=0.3, arrivals_per_lane=10, green_light_time=10, left_turn_chance=0.3, right_turn_chance=0.3, priority_left_turn_time=None, right_turn_lane=True)
@@ -245,4 +253,4 @@ class Sim:
 #Sim(num_lanes=6, num_directions=2, lam=0.3, arrivals_per_lane=10, green_light_time=10, left_turn_chance=0.3, right_turn_chance=0.3, priority_left_turn_time=3, right_turn_lane=False)
 
 # Extra right turn lane and extra left turn lane/signal
-Sim(num_lanes=8, num_directions=2, lam=0.3, arrivals_per_lane=10, green_light_time=10, left_turn_chance=0.3, right_turn_chance=0.3, priority_left_turn_time=3, right_turn_lane=True)
+#Sim(num_lanes=8, num_directions=2, lam=0.3, arrivals_per_lane=10, green_light_time=10, left_turn_chance=0.3, right_turn_chance=0.3, priority_left_turn_time=3, right_turn_lane=True)
