@@ -79,7 +79,14 @@ class Sim:
 
         waiting_times = [car.departure_time - car.arrival_time for car in self.departed_cars]
 
+        left_turns = sum(1 for car in self.departed_cars if car.direction == "left")
+        right_turns = sum(1 for car in self.departed_cars if car.direction == "right")
+        straights = sum(1 for car in self.departed_cars if car.direction == "straight")
+
         print(f"Total cars departed: {len(self.departed_cars)}")
+        print(f"Cars that turned left: {left_turns}")
+        print(f"Cars that turned right: {right_turns}")
+        print(f"Cars that went straight: {straights}")
         print(f"Total time: {self.time}")
         print(f"Throughput: {len(self.departed_cars) / self.time} cars per tick")
         print(f"Average waiting time: {sum(waiting_times) / len(waiting_times)} ticks")
@@ -203,13 +210,14 @@ class Sim:
 
         #Normalize inter-arrival times for priority lanes (e.g. divide by left/right turn chance)
         # because we're generating less cars than for straight only lanes
+        normalized_lam = self.lam
         if lane % (self.num_lanes - 1) == 0 and self.right_turn_lane:
-          self.lam /= self.right_turn_chance
+          normalized_lam /= self.right_turn_chance
         elif abs(lane - (self.num_lanes - 1) / 2) == 0.5 and self.priority_left_turn_time:
-          self.lam /= self.left_turn_chance
+          normalized_lam /= self.left_turn_chance
 
 
-        inter_arrival_times = rng.poisson(lam=self.lam, size=self.arrivals_per_lane)
+        inter_arrival_times = rng.poisson(lam=normalized_lam, size=self.arrivals_per_lane)
         arrival_times = inter_arrival_times.cumsum().tolist()
         direction = None
 
@@ -218,7 +226,7 @@ class Sim:
 
         # Outer lane with right turn lane: generate only right turn traffic
         if outer and self.right_turn_lane:
-            direction = ['right' for _ in range(math.ceil(self.right_turn_chance * self.arrivals_per_lane))]
+            direction = ['right'] * len(arrival_times)
 
         # Outer lane with no right turn lane: generate straight traffic & right turn traffic
         elif outer and not self.right_turn_lane:
@@ -226,7 +234,7 @@ class Sim:
 
         # Inner lane with left turn lane: generate only left turn traffic
         elif inner and self.priority_left_turn_time:
-            direction = ['left' for _ in range(math.ceil(self.left_turn_chance * self.arrivals_per_lane))]
+            direction = ['left'] * len(arrival_times)
 
         # Inner lane with no left turn lane: generate straight & left turn traffic
         elif inner and not self.priority_left_turn_time:
@@ -234,7 +242,7 @@ class Sim:
 
         # Not inner lane and not outer lane: generate only straight traffic
         elif not inner and not outer:
-            direction = ['straight' for _ in range(self.arrivals_per_lane)]
+            direction = ['straight'] * len(arrival_times)
 
         lane = [lane for _ in range(len(direction))]
         id = [i for i in range(len(direction))]
