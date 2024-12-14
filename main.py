@@ -226,7 +226,7 @@ class Sim:
 
         # Outer lane with right turn lane: generate only right turn traffic
         if outer and self.right_turn_lane:
-            direction = ['right'] * len(arrival_times)
+            direction = ['right' for _ in range(self.arrivals_per_lane)]
 
         # Outer lane with no right turn lane: generate straight traffic & right turn traffic
         elif outer and not self.right_turn_lane:
@@ -234,7 +234,7 @@ class Sim:
 
         # Inner lane with left turn lane: generate only left turn traffic
         elif inner and self.priority_left_turn_time:
-            direction = ['left'] * len(arrival_times)
+            direction = ['left' for _ in range(self.arrivals_per_lane)]
 
         # Inner lane with no left turn lane: generate straight & left turn traffic
         elif inner and not self.priority_left_turn_time:
@@ -242,7 +242,7 @@ class Sim:
 
         # Not inner lane and not outer lane: generate only straight traffic
         elif not inner and not outer:
-            direction = ['straight'] * len(arrival_times)
+            direction = ['straight' for _ in range(self.arrivals_per_lane)]
 
         lane = [lane for _ in range(len(direction))]
         id = [i for i in range(len(direction))]
