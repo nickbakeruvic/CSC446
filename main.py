@@ -2,6 +2,8 @@ import numpy as np
 import math
 import random
 import copy
+import matplotlib.pyplot as plt
+import pandas as pd
 
 
 class Car:
@@ -37,10 +39,11 @@ class Sim:
         self.right_turn_chance = right_turn_chance
         self.priority_left_turn_time = priority_left_turn_time
         self.right_turn_lane = right_turn_lane
+        self.departed_cars = []
 
         if self.priority_left_turn_time:
             self.priority_left_turn_signal = True
-        
+
         # Generate arrivals
         traffic = []
         cardinal_directions = ['North', 'South', 'East', 'West']
@@ -54,7 +57,7 @@ class Sim:
         not_empty = lambda t: any(any(lane != [] for lane in direction) for direction in t)
 
         while not_empty(traffic):
-            
+
             # Move traffic from lanes into intersection
             intersection = self.update_intersection(traffic, intersection)
 
@@ -83,17 +86,31 @@ class Sim:
         right_turns = sum(1 for car in self.departed_cars if car.direction == "right")
         straights = sum(1 for car in self.departed_cars if car.direction == "straight")
 
-        print(f"Total cars departed: {len(self.departed_cars)}")
-        print(f"Cars that turned left: {left_turns}")
-        print(f"Cars that turned right: {right_turns}")
-        print(f"Cars that went straight: {straights}")
-        print(f"Total time: {self.time}")
-        print(f"Throughput: {len(self.departed_cars) / self.time} cars per tick")
-        print(f"Average waiting time: {sum(waiting_times) / len(waiting_times)} ticks")
-        print(f"Max waiting time: {max(waiting_times)} ticks")
+        stats = {
+          "Total cars departed": len(self.departed_cars),
+          "Cars that turned left": left_turns,
+          "Cars that turned right": right_turns,
+          "Cars that went straight": straights,
+          "Total time": self.time,
+          "Throughput": len(self.departed_cars) / self.time,
+          "Average waiting time": sum(waiting_times) / len(waiting_times),
+          "Max waiting time": max(waiting_times)
+        }
+
+        #print(f"Total cars departed: {len(self.departed_cars)}")
+        #print(f"Cars that turned left: {left_turns}")
+        #print(f"Cars that turned right: {right_turns}")
+        #print(f"Cars that went straight: {straights}")
+        #print(f"Total time: {self.time}")
+        #print(f"Throughput: {len(self.departed_cars) / self.time} cars per tick")
+        #print(f"Average waiting time: {sum(waiting_times) / len(waiting_times)} ticks")
+        #print(f"Max waiting time: {max(waiting_times)} ticks")
+
+        return stats
+
 
     def handle_red_light_traffic(self, traffic, intersection):
-        red_light_traffic = traffic[(self.green_direction + 1) % 2] 
+        red_light_traffic = traffic[(self.green_direction + 1) % 2]
         for i in range(len(red_light_traffic)):
             lane = red_light_traffic[i]
             if len(lane) == 0 or self.time < lane[0].arrival_time or lane[0].direction != 'right':
@@ -113,7 +130,9 @@ class Sim:
 
             oncoming_car = intersection[lane_to_check]
             if not oncoming_car or oncoming_car.direction != 'straight':
-                print(">>>", car, "turned right at red light\n")
+                #print(">>>", car, "turned right at red light\n")
+                car.departure_time = self.time
+                self.departed_cars.append(car)
                 lane.pop(0)
 
     def check_light(self, intersection):
@@ -133,7 +152,7 @@ class Sim:
 
             # Add an extra tick for yellow light
             self.time = self.time + 1
-            print("--- Yellow light, clearing intersection ---\n")
+            #print("--- Yellow light, clearing intersection ---\n")
 
             if self.priority_left_turn_time:
                 self.priority_left_turn_signal = True
@@ -169,7 +188,7 @@ class Sim:
                             break
 
                 if not oncoming_straight_car:
-                    print(">>>", car, "turned left\n")
+                    #print(">>>", car, "turned left\n")
                     car.departure_time = self.time
                     self.departed_cars.append(car)
                     updated_intersection[car.lane] = None
@@ -188,17 +207,17 @@ class Sim:
                 # traffic because we have at least 2 lanes of traffic)
                 if self.priority_left_turn_signal and lane[0].direction == 'straight':
                     continue
-        
+
                 # No cars in the intersection occupying this lane,
                 # new car can come
                 if intersection[i] is None:
                     intersection[i] = lane.pop(0)
 
             # Move traffic out of intersection
-            print(str(self.time) + f": Intersection is (Priority left turn signal is {self.priority_left_turn_signal})")
-            for car in intersection:
-                print(car)
-            print()
+            #print(str(self.time) + f": Intersection is (Priority left turn signal is {self.priority_left_turn_signal})")
+            #for car in intersection:
+                #print(car)
+            #print()
 
             return intersection
 
@@ -206,7 +225,7 @@ class Sim:
         # TODO: Generate less cars going straight? We'll generate extra num_lanes * right_turn_chance cars
         # when we have right turn lane for example (should have shorter queue in straight lane when cars going
         # to right turn lane)
-        
+
 
         #Normalize inter-arrival times for priority lanes (e.g. divide by left/right turn chance)
         # because we're generating less cars than for straight only lanes
@@ -249,10 +268,99 @@ class Sim:
 
         return [Car(id[i], direction[i], lane[i], arrival_times[i], None, cardinal_direction) for i in range(len(direction))]
 
-# TODO: Aggregate stats & compare for different setups
+
+lams = [0.1, 0.2, 0.3, 0.4, 0.5]
+left_turn_chances = [0.2, 0.3]
+right_turn_chances = [0.2, 0.3]
+results_1 = []
+results_2 = []
+results_3 = []
+results_4 = []
+for arrival_rate in lams:
+  for left_turn_rate in left_turn_chances:
+    for right_turn_rate in right_turn_chances:
+      simulate_1 = Sim(num_lanes=4, num_directions=2, lam=arrival_rate, arrivals_per_lane=10, green_light_time=10, left_turn_chance=left_turn_rate, right_turn_chance=right_turn_rate, priority_left_turn_time=None, right_turn_lane=False)
+      simulate_2 = Sim(num_lanes=6, num_directions=2, lam=arrival_rate, arrivals_per_lane=10, green_light_time=10, left_turn_chance=left_turn_rate, right_turn_chance=right_turn_rate, priority_left_turn_time=None, right_turn_lane=True)
+      simulate_3 = Sim(num_lanes=6, num_directions=2, lam=arrival_rate, arrivals_per_lane=10, green_light_time=10, left_turn_chance=left_turn_rate, right_turn_chance=right_turn_rate, priority_left_turn_time=3, right_turn_lane=False)
+      simulate_4 = Sim(num_lanes=8, num_directions=2, lam=arrival_rate, arrivals_per_lane=10, green_light_time=10, left_turn_chance=left_turn_rate, right_turn_chance=right_turn_rate, priority_left_turn_time=3, right_turn_lane=True)
+      #collect stats
+      stats_1 = simulate_1.print_stats()
+      stats_1.update({
+                "arrival_rate": arrival_rate,
+                "left_turn_rate": left_turn_rate,
+                "right_turn_rate": right_turn_rate
+      })
+      results_1.append(stats_1)
+      stats_2 = simulate_2.print_stats()
+      stats_2.update({
+                "arrival_rate": arrival_rate,
+                "left_turn_rate": left_turn_rate,
+                "right_turn_rate": right_turn_rate
+      })
+      results_2.append(stats_2)
+      stats_3 = simulate_3.print_stats()
+      stats_3.update({
+                "arrival_rate": arrival_rate,
+                "left_turn_rate": left_turn_rate,
+                "right_turn_rate": right_turn_rate
+      })
+      results_3.append(stats_3)
+      stats_4 = simulate_4.print_stats()
+      stats_4.update({
+                "arrival_rate": arrival_rate,
+                "left_turn_rate": left_turn_rate,
+                "right_turn_rate": right_turn_rate
+      })
+      results_4.append(stats_4)
+      #print("Simulation Stats:")
+      #for key, value in stats.items():
+      #      print(f"  {key}: {value}")
+      #print("-" * 50)
+
+
+
+
+df_1 = pd.DataFrame(results_1)
+df_2 = pd.DataFrame(results_2)
+df_3 = pd.DataFrame(results_3)
+df_4 = pd.DataFrame(results_4)
+
+df_1['Sim Type'] = 'Default Intersection'
+df_2['Sim Type'] = 'Extra Right Turn Lane'
+df_3['Sim Type'] = 'Left Turn Signal'
+df_4['Sim Type'] = 'Right Turn Lane & Left Turn Signal'
+
+
+combined_df = pd.concat([df_1, df_2, df_3, df_4], ignore_index=True)
+
+metrics = ['Throughput', 'Average waiting time', 'Max waiting time']
+
+for left_turn_rate in left_turn_chances:
+    for right_turn_rate in right_turn_chances:
+        subset = combined_df[(combined_df['left_turn_rate'] == left_turn_rate) & 
+                             (combined_df['right_turn_rate'] == right_turn_rate)]
+        
+        for metric in metrics:
+            plt.figure(figsize=(10, 6))
+            
+            
+            for sim_type, data in subset.groupby('Sim Type'):
+                plt.plot(data['arrival_rate'],data[metric],marker='o',label=sim_type)
+            
+            plt.title(f'{metric} vs Arrival Rate\n(Left Turn Rate: {left_turn_rate}, Right Turn Rate: {right_turn_rate})')
+            plt.xlabel('Arrival Rate')
+            plt.ylabel(metric)
+            plt.legend(title="Simulation Type", loc='upper right', framealpha = 0.5) 
+            plt.grid(True)
+            plt.tight_layout()
+            plt.show()
+
+
+
+
 
 # Default intersection setup
-Sim(num_lanes=4, num_directions=2, lam=0.3, arrivals_per_lane=10, green_light_time=10, left_turn_chance=0.3, right_turn_chance=0.3, priority_left_turn_time=None, right_turn_lane=False)
+#Sim(num_lanes=4, num_directions=2, lam=0.3, arrivals_per_lane=10, green_light_time=10, left_turn_chance=0.3, right_turn_chance=0.3, priority_left_turn_time=None, right_turn_lane=False)
 
 # Extra right turn lane
 #Sim(num_lanes=6, num_directions=2, lam=0.3, arrivals_per_lane=10, green_light_time=10, left_turn_chance=0.3, right_turn_chance=0.3, priority_left_turn_time=None, right_turn_lane=True)
